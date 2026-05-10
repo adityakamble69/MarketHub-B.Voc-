@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Vendor Dashboard — MarketHub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css" />
+</head>
+<body>
+<nav class="navbar">
+  <a class="logo" href="../index.html">Market<span>Hub</span></a>
+  <div class="nav-links" style="margin-left:auto">
+    <span id="vendorName" style="color:var(--text-muted);font-size:.9rem"></span>
+    <button onclick="Auth.logout()">Logout</button>
+  </div>
+</nav>
+
+<div class="dashboard-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <a class="sidebar-link active" onclick="showTab('overview', this)">📊 Overview</a>
+    <a class="sidebar-link" onclick="showTab('products', this)">📦 My Products</a>
+    <a class="sidebar-link" onclick="showTab('add-product', this)">➕ Add Product</a>
+    <a class="sidebar-link" onclick="showTab('orders', this)">🧾 Orders</a>
+    <a class="sidebar-link" onclick="showTab('profile', this)">⚙️ Profile</a>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+
+    <!-- Overview -->
+    <div id="tab-overview">
+      <h2 class="page-title">Dashboard Overview</h2>
+      <div class="stats-grid" id="statsGrid">
+        <div class="stat-card"><div class="label">Total Products</div><div class="value" id="statProducts">—</div></div>
+        <div class="stat-card"><div class="label">Total Orders</div><div class="value" id="statOrders">—</div></div>
+        <div class="stat-card"><div class="label">Revenue (₹)</div><div class="value" id="statRevenue">—</div></div>
+        <div class="stat-card"><div class="label">Pending Payouts (₹)</div><div class="value" id="statPending">—</div></div>
+      </div>
+      <h3 style="font-family:var(--font-head);margin-bottom:16px">Recent Orders</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Product</th><th>Qty</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody id="recentOrdersTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- My Products -->
+    <div id="tab-products" style="display:none">
+      <h2 class="page-title">My Products</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="productTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Add Product -->
+    <div id="tab-add-product" style="display:none">
+      <h2 class="page-title">Add New Product</h2>
+      <div style="max-width:560px">
+        <div class="error-msg" id="productError"></div>
+        <div class="form-group"><label>Product Name</label><input id="pName" type="text" placeholder="e.g. Wireless Headphones" /></div>
+        <div class="form-group">
+          <label>Category</label>
+          <select id="pCategory"><option value="">Select category</option></select>
+        </div>
+        <div class="form-group"><label>Description</label><textarea id="pDesc" rows="4" style="width:100%"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="form-group"><label>Price (₹)</label><input id="pPrice" type="number" min="0" step="0.01" /></div>
+          <div class="form-group"><label>Discount Price (₹)</label><input id="pDiscount" type="number" min="0" step="0.01" /></div>
+        </div>
+        <div class="form-group"><label>Stock Quantity</label><input id="pStock" type="number" min="0" /></div>
+        <button class="btn btn-primary" onclick="submitProduct()">Publish Product</button>
+      </div>
+    </div>
+
+    <!-- Orders -->
+    <div id="tab-orders" style="display:none">
+      <h2 class="page-title">Orders</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order ID</th><th>Product</th><th>Qty</th><th>Amount</th><th>Status</th></tr></thead>
+          <tbody id="ordersTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Profile -->
+    <div id="tab-profile" style="display:none">
+      <h2 class="page-title">Shop Profile</h2>
+      <div style="max-width:560px">
+        <div class="form-group"><label>Shop Name</label><input id="shopName" type="text" /></div>
+        <div class="form-group"><label>Description</label><textarea id="shopDesc" rows="4" style="width:100%"></textarea></div>
+        <div class="form-group"><label>Phone</label><input id="shopPhone" type="tel" /></div>
+        <div class="form-group"><label>Address</label><textarea id="shopAddr" rows="3" style="width:100%"></textarea></div>
+        <button class="btn btn-primary" onclick="saveProfile()">Save Profile</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  // Auth guard
+  const user = Auth.getUser();
+  if (!user || user.role !== 'vendor') location.href = 'login.html';
+
+  document.getElementById('vendorName').textContent = user?.email || '';
+
+  let dashData = null;
+
+  async function init() {
+    dashData = await Vendor.dashboard();
+    // Stats
+    const s = dashData.stats;
+    document.getElementById('statProducts').textContent = s.total_products;
+    document.getElementById('statOrders').textContent   = s.total_orders;
+    document.getElementById('statRevenue').textContent  = parseFloat(s.total_revenue).toFixed(0);
+    document.getElementById('statPending').textContent  = parseFloat(s.pending_payouts).toFixed(0);
+    // Profile fields
+    const v = dashData.vendor;
+    document.getElementById('shopName').value  = v.shop_name  || '';
+    document.getElementById('shopDesc').value  = v.description|| '';
+    document.getElementById('shopPhone').value = v.phone      || '';
+    document.getElementById('shopAddr').value  = v.address    || '';
+    // Recent orders table
+    const tbody = document.getElementById('recentOrdersTable');
+    tbody.innerHTML = dashData.recent_orders.map(o => `
+      <tr>
+        <td>${o.product_name}</td>
+        <td>${o.quantity}</td>
+        <td><span class="status status-${o.status}">${o.status}</span></td>
+        <td>${new Date(o.created_at).toLocaleDateString()}</td>
+      </tr>
+    `).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text-muted)">No orders yet</td></tr>';
+
+    // Load categories for add product
+    const cats = await Categories.list();
+    const sel = document.getElementById('pCategory');
+    cats.forEach(c => { const o = document.createElement('option'); o.value = c.id; o.textContent = c.name; sel.appendChild(o); });
+  }
+
+  async function loadProducts() {
+    const products = await Vendor.products();
+    const tbody = document.getElementById('productTable');
+    tbody.innerHTML = products.map(p => `
+      <tr>
+        <td>${p.name}</td>
+        <td>₹${p.discount_price || p.price}</td>
+        <td>${p.stock}</td>
+        <td><span class="status status-${p.status}">${p.status}</span></td>
+        <td><button class="btn btn-danger" style="padding:4px 10px;font-size:.8rem" onclick="deleteProduct(${p.id})">Delete</button></td>
+      </tr>
+    `).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">No products yet</td></tr>';
+  }
+
+  async function deleteProduct(id) {
+    if (!confirm('Delete this product?')) return;
+    await Products.delete(id);
+    loadProducts();
+  }
+
+  async function submitProduct() {
+    const errEl = document.getElementById('productError');
+    errEl.classList.remove('show');
+    const body = {
+      name:           document.getElementById('pName').value.trim(),
+      category_id:    document.getElementById('pCategory').value,
+      description:    document.getElementById('pDesc').value.trim(),
+      price:          parseFloat(document.getElementById('pPrice').value),
+      discount_price: parseFloat(document.getElementById('pDiscount').value) || null,
+      stock:          parseInt(document.getElementById('pStock').value),
+    };
+    if (!body.name || !body.price) {
+      errEl.textContent = 'Name and price are required.'; errEl.classList.add('show'); return;
+    }
+    try {
+      await Products.create(body);
+      alert('Product published!');
+      showTab('products', null);
+    } catch (e) {
+      errEl.textContent = e.message; errEl.classList.add('show');
+    }
+  }
+
+  async function saveProfile() {
+    await Vendor.updateProfile({
+      shop_name:   document.getElementById('shopName').value,
+      description: document.getElementById('shopDesc').value,
+      phone:       document.getElementById('shopPhone').value,
+      address:     document.getElementById('shopAddr').value,
+    });
+    alert('Profile saved!');
+  }
+
+  function showTab(name, el) {
+    document.querySelectorAll('[id^="tab-"]').forEach(t => t.style.display = 'none');
+    document.getElementById('tab-' + name).style.display = 'block';
+    document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'));
+    if (el) el.classList.add('active');
+    if (name === 'products') loadProducts();
+  }
+
+  init();
+</script>
+</body>
+</html>

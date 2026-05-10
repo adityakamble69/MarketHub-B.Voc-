@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login — MarketHub</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/main.css" />
+</head>
+<body>
+<nav class="navbar">
+  <a class="logo" href="../index.html">Market<span>Hub</span></a>
+</nav>
+
+<div class="auth-wrapper">
+  <div class="auth-card">
+    <h2>Welcome back</h2>
+    <p>Login to your MarketHub account</p>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="you@example.com" />
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" />
+    </div>
+    <button class="form-submit" onclick="handleLogin()">Login</button>
+
+    <p class="auth-link">Don't have an account? <a href="register.html">Register</a></p>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script>
+  // Redirect if already logged in
+  if (Auth.getUser()) location.href = '../index.html';
+
+  async function handleLogin() {
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const errEl    = document.getElementById('errorMsg');
+    errEl.classList.remove('show');
+
+    if (!email || !password) {
+      errEl.textContent = 'Please fill all fields.';
+      errEl.classList.add('show'); return;
+    }
+
+    try {
+      const { token, user } = await Auth.login({ email, password });
+      setToken(token);
+      if (user.role === 'vendor') {
+        location.href = 'vendor-dashboard.html';
+      } else if (user.role === 'admin') {
+        location.href = 'admin.html';
+      } else {
+        location.href = '../index.html';
+      }
+    } catch (e) {
+      errEl.textContent = e.message;
+      errEl.classList.add('show');
+    }
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Enter') handleLogin(); });
+</script>
+</body>
+</html>

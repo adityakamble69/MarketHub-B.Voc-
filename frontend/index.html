@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MarketHub — Multi-Vendor Marketplace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="navbar">
+  <a class="logo" href="index.html">Market<span>Hub</span></a>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="Search products...">
+    <button onclick="searchProducts()">🔍</button>
+  </div>
+  <div class="nav-links">
+    <a href="index.html">Shop</a>
+    <a href="#" id="cartLink">🛒 Cart <span id="cartCount" class="badge">0</span></a>
+    <a href="pages/login.html" id="loginLink">Login</a>
+    <a href="pages/vendor-dashboard.html" id="dashboardLink" style="display:none">Dashboard</a>
+    <button id="logoutBtn" style="display:none" onclick="Auth.logout()">Logout</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-content">
+    <h1>Shop from <span>Thousands</span> of Vendors</h1>
+    <p>Discover unique products from verified sellers worldwide</p>
+    <button onclick="document.getElementById('products-section').scrollIntoView({behavior:'smooth'})">
+      Browse Products →
+    </button>
+  </div>
+</section>
+
+<!-- CATEGORIES -->
+<section class="categories-bar">
+  <div id="categoryList" class="category-list">
+    <button class="cat-btn active" onclick="filterCategory(null, this)">All</button>
+  </div>
+</section>
+
+<!-- PRODUCTS GRID -->
+<section id="products-section" class="products-section">
+  <div class="section-header">
+    <h2>Featured Products</h2>
+    <select id="sortSelect" onchange="sortProducts()">
+      <option value="">Sort by</option>
+      <option value="price_asc">Price: Low to High</option>
+      <option value="price_desc">Price: High to Low</option>
+    </select>
+  </div>
+  <div id="productGrid" class="product-grid">
+    <div class="loading">Loading products...</div>
+  </div>
+</section>
+
+<!-- CART SIDEBAR -->
+<div id="cartOverlay" class="cart-overlay" onclick="toggleCart()"></div>
+<aside id="cartSidebar" class="cart-sidebar">
+  <div class="cart-header">
+    <h3>Your Cart</h3>
+    <button onclick="toggleCart()">✕</button>
+  </div>
+  <div id="cartItems" class="cart-items"></div>
+  <div class="cart-footer">
+    <div class="cart-total">Total: ₹<span id="cartTotal">0</span></div>
+    <button class="checkout-btn" onclick="location.href='pages/checkout.html'">Proceed to Checkout</button>
+  </div>
+</aside>
+
+<footer class="footer">
+  <p>© AADII'S MarketHub</p>
+</footer>
+
+<script src="js/api.js"></script>
+<script>
+  let allProducts = [];
+  let activeCategory = null;
+
+  async function init() {
+    updateNavForUser();
+    await loadCategories();
+    await loadProducts();
+    await updateCartCount();
+  }
+
+  function updateNavForUser() {
+    const user = Auth.getUser();
+    if (user) {
+      document.getElementById('loginLink').style.display = 'none';
+      document.getElementById('logoutBtn').style.display = 'inline-block';
+      if (user.role === 'vendor') {
+        document.getElementById('dashboardLink').style.display = 'inline-block';
+      }
+    }
+  }
+
+  async function loadCategories() {
+    try {
+      const cats = await Categories.list();
+      const list = document.getElementById('categoryList');
+      cats.forEach(c => {
+        const btn = document.createElement('button');
+        btn.className = 'cat-btn';
+        btn.textContent = `${c.icon || ''} ${c.name}`;
+        btn.onclick = () => filterCategory(c.slug, btn);
+        list.appendChild(btn);
+      });
+    } catch (e) {}
+  }
+
+  async function loadProducts(params = {}) {
+    const grid = document.getElementById('productGrid');
+    grid.innerHTML = '<div class="loading">Loading...</div>';
+    try {
+      const { products } = await Products.list(params);
+      allProducts = products;
+      renderProducts(products);
+    } catch (e) {
+      grid.innerHTML = '<p class="error">Could not load products.</p>';
+    }
+  }
+
+  function renderProducts(products) {
+    const grid = document.getElementById('productGrid');
+    if (!products.length) { grid.innerHTML = '<p class="empty">No products found.</p>'; return; }
+    grid.innerHTML = products.map(p => `
+      <div class="product-card" onclick="location.href='pages/product.html?id=${p.id}'">
+        <div class="product-img">
+          <img src="${p.thumbnail || 'https://via.placeholder.com/300x200?text=No+Image'}" alt="${p.name}" />
+          ${p.discount_price ? '<span class="badge-sale">SALE</span>' : ''}
+        </div>
+        <div class="product-info">
+          <span class="vendor-name">${p.shop_name}</span>
+          <h4>${p.name}</h4>
+          <div class="price-row">
+            ${p.discount_price
+              ? `<span class="price">₹${p.discount_price}</span><span class="original-price">₹${p.price}</span>`
+              : `<span class="price">₹${p.price}</span>`}
+          </div>
+          <button class="add-cart-btn" onclick="event.stopPropagation(); addToCart(${p.id})">Add to Cart</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function filterCategory(slug, btn) {
+    document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activeCategory = slug;
+    loadProducts(slug ? { category: slug } : {});
+  }
+
+  function searchProducts() {
+    const q = document.getElementById('searchInput').value;
+    loadProducts(q ? { search: q } : {});
+  }
+
+  document.getElementById('searchInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') searchProducts();
+  });
+
+  function sortProducts() {
+    const val = document.getElementById('sortSelect').value;
+    let sorted = [...allProducts];
+    if (val === 'price_asc') sorted.sort((a,b) => (a.discount_price||a.price) - (b.discount_price||b.price));
+    if (val === 'price_desc') sorted.sort((a,b) => (b.discount_price||b.price) - (a.discount_price||a.price));
+    renderProducts(sorted);
+  }
+
+  async function addToCart(productId) {
+    if (!Auth.getUser()) { location.href = 'pages/login.html'; return; }
+    try {
+      await Cart.add(productId);
+      await updateCartCount();
+      showToast('Added to cart!');
+    } catch (e) { showToast(e.message, true); }
+  }
+
+  async function updateCartCount() {
+    try {
+      const items = await Cart.get();
+      document.getElementById('cartCount').textContent = items.length;
+    } catch {}
+  }
+
+  function toggleCart() {
+    document.getElementById('cartSidebar').classList.toggle('open');
+    document.getElementById('cartOverlay').classList.toggle('open');
+    loadCartItems();
+  }
+
+  document.getElementById('cartLink').onclick = (e) => { e.preventDefault(); toggleCart(); };
+
+  async function loadCartItems() {
+    const container = document.getElementById('cartItems');
+    try {
+      const items = await Cart.get();
+      if (!items.length) { container.innerHTML = '<p class="empty-cart">Your cart is empty</p>'; return; }
+      const total = items.reduce((s, i) => s + ((i.discount_price || i.price) * i.quantity), 0);
+      document.getElementById('cartTotal').textContent = total.toFixed(2);
+      container.innerHTML = items.map(i => `
+        <div class="cart-item">
+          <img src="${i.image || 'https://via.placeholder.com/60'}" alt="${i.name}" />
+          <div class="cart-item-info">
+            <span>${i.name}</span>
+            <span>Qty: ${i.quantity}</span>
+            <span>₹${((i.discount_price || i.price) * i.quantity).toFixed(2)}</span>
+          </div>
+          <button onclick="removeCartItem(${i.id})">✕</button>
+        </div>
+      `).join('');
+    } catch { container.innerHTML = '<p>Login to view cart</p>'; }
+  }
+
+  async function removeCartItem(id) {
+    await Cart.remove(id);
+    await updateCartCount();
+    loadCartItems();
+  }
+
+  function showToast(msg, isError = false) {
+    const t = document.createElement('div');
+    t.className = `toast ${isError ? 'toast-error' : ''}`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.classList.add('show'), 10);
+    setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
+  }
+
+  init();
+</script>
+</body>
+</html>
